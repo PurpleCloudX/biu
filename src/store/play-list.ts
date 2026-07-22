@@ -7,6 +7,7 @@ import { create } from "zustand";
 import { persist } from "zustand/middleware";
 import { immer } from "zustand/middleware/immer";
 
+import { AudioPlayer } from "@/audio/audio-player";
 import { getPlayModeList, PlayMode } from "@/common/constants/audio";
 import { getAudioUrl, getDashUrl, isUrlValid } from "@/common/utils/audio";
 import { beginPlayReport, endPlayReport, reportHeartbeat } from "@/common/utils/play-report";
@@ -120,7 +121,7 @@ interface Action {
   next: () => Promise<void>;
   prev: () => Promise<void>;
 
-  getAudio: () => HTMLAudioElement;
+  getAudio: () => AudioPlayer;
   getPlayItem: () => PlayData | undefined;
 }
 
@@ -197,15 +198,7 @@ const updateMediaSession = ({ title, artist, cover }: { title: string; artist?: 
   }
 };
 
-const createAudio = (): HTMLAudioElement => {
-  const audio = new Audio();
-  audio.preload = "metadata";
-  audio.controls = false;
-  audio.crossOrigin = "anonymous";
-  return audio;
-};
-
-export const audio = createAudio();
+export const audio = new AudioPlayer();
 
 const updatePlaybackState = () => {
   if ("mediaSession" in navigator) {

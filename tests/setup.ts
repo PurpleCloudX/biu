@@ -14,6 +14,7 @@ class FakeMediaMetadata {
 }
 
 class FakeAudio {
+  dataset: Record<string, string> = {};
   preload: string = "none";
   controls: boolean = false;
   crossOrigin: string = "anonymous";

@@ -1,6 +1,6 @@
 import { useEffect, useRef } from "react";
 
-import { audio as audioElement } from "@/store/play-list";
+import { audio } from "@/store/play-list";
 
 interface AudioWaveformProps {
   width?: number;
@@ -12,6 +12,7 @@ interface AudioWaveformProps {
 // Global AudioContext singleton to prevent multiple MediaElementSourceNode creation
 let audioContext: AudioContext | null = null;
 let analyser: AnalyserNode | null = null;
+let outputGain: GainNode | null = null;
 let source: MediaElementAudioSourceNode | null = null;
 
 /**
@@ -24,6 +25,7 @@ const AudioWaveform = ({ width = 56, height = 56, barCount = 40, barColor = "cur
 
   useEffect(() => {
     const canvas = canvasRef.current;
+    const audioElement = audio.getAnalysisElement();
     if (!canvas || !audioElement) return;
 
     const ctx = canvas.getContext("2d");
@@ -35,12 +37,14 @@ const AudioWaveform = ({ width = 56, height = 56, barCount = 40, barColor = "cur
         audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
         analyser = audioContext.createAnalyser();
         analyser.fftSize = 512; // Increased for better resolution
+        outputGain = audioContext.createGain();
 
         try {
           // Connect the global audio element to the analyser
           source = audioContext.createMediaElementSource(audioElement);
           source.connect(analyser);
-          analyser.connect(audioContext.destination);
+          analyser.connect(outputGain);
+          outputGain.connect(audioContext.destination);
         } catch (error) {
           console.warn("MediaElementSourceNode already connected or creation failed:", error);
         }
@@ -52,23 +56,6 @@ const AudioWaveform = ({ width = 56, height = 56, barCount = 40, barColor = "cur
 
     // Initialize on mount
     initAudio();
-
-    // Ensure context resumes on play
-    const handlePlay = () => {
-      if (audioContext?.state === "suspended") {
-        audioContext.resume();
-      }
-      if (!animationIdRef.current) {
-        render();
-      }
-    };
-
-    const handlePause = () => {
-      if (animationIdRef.current) {
-        cancelAnimationFrame(animationIdRef.current);
-        animationIdRef.current = 0;
-      }
-    };
 
     const draw = () => {
       if (!analyser || !ctx) return;
@@ -126,22 +113,42 @@ const AudioWaveform = ({ width = 56, height = 56, barCount = 40, barColor = "cur
       animationIdRef.current = requestAnimationFrame(render);
     };
 
-    audioElement.addEventListener("play", handlePlay);
-    audioElement.addEventListener("pause", handlePause);
+    const syncAnalysis = () => {
+      const native = audio.isNative();
+      if (outputGain) outputGain.gain.value = native ? 0 : 1;
+      if (!native) return;
 
-    // Initialize state
-    if (!audioElement.paused) {
-      render();
-    } else {
-      draw();
-    }
+      if (audioElement.dataset.biuAnalysisSource !== audio.src) {
+        audioElement.src = audio.src;
+        audioElement.dataset.biuAnalysisSource = audio.src;
+        audioElement.currentTime = audio.currentTime;
+      }
+      audioElement.playbackRate = audio.playbackRate;
+      if (Math.abs(audioElement.currentTime - audio.currentTime) > 0.35) {
+        audioElement.currentTime = audio.currentTime;
+      }
+      if (audio.paused) {
+        audioElement.pause();
+      } else if (audioElement.paused) {
+        void audioElement.play().catch(() => undefined);
+      }
+    };
+
+    syncAnalysis();
+    const syncTimer = window.setInterval(syncAnalysis, 500);
+    render();
 
     return () => {
       if (animationIdRef.current) {
         cancelAnimationFrame(animationIdRef.current);
       }
-      audioElement.removeEventListener("play", handlePlay);
-      audioElement.removeEventListener("pause", handlePause);
+      window.clearInterval(syncTimer);
+      if (audio.isNative()) {
+        audioElement.pause();
+        audioElement.src = "";
+        delete audioElement.dataset.biuAnalysisSource;
+      }
+      if (outputGain) outputGain.gain.value = 1;
     };
   }, [width, height, barCount, barColor]);
 
