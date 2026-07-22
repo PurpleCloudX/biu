@@ -48,6 +48,22 @@ declare global {
     getPlatform: () => AppPlatForm;
     /** 更新网络代理设置 */
     setProxySettings: (proxySettings: ProxySettings) => Promise<void>;
+    /** 配置并探测原生音频后端 */
+    configureNativeAudio: (config: NativeAudioConfig) => Promise<NativeAudioStatus>;
+    /** 使用临时进程检测后端，不影响当前播放 */
+    probeNativeAudio: (config: NativeAudioConfig) => Promise<NativeAudioProbeResult>;
+    /** 在原生后端加载媒体 */
+    loadNativeAudio: (request: NativeAudioLoadRequest) => Promise<void>;
+    playNativeAudio: () => Promise<void>;
+    pauseNativeAudio: () => Promise<void>;
+    seekNativeAudio: (position: number) => Promise<void>;
+    setNativeAudioVolume: (volume: number) => Promise<void>;
+    setNativeAudioMuted: (muted: boolean) => Promise<void>;
+    setNativeAudioRate: (rate: number) => Promise<void>;
+    setNativeAudioLoop: (loop: boolean) => Promise<void>;
+    getNativeAudioStatus: () => Promise<NativeAudioStatus>;
+    listNativeAudioDevices: () => Promise<Array<{ description: string; name: string }>>;
+    onNativeAudioEvent: (cb: (event: NativeAudioEvent) => void) => VoidFunction;
     /** 上报当前播放状态到主进程（用于任务栏按钮切换） */
     updatePlaybackState: (isPlaying: boolean) => void;
     /** 订阅主进程下发的快捷键命令 */

@@ -1,6 +1,7 @@
 import type { IpcHandlerProps } from "./types";
 
 import { registerAppHandlers } from "./app";
+import { registerAudioHandlers } from "./audio";
 import { registerCookieIpcHandlers } from "./cookie";
 import { registerDialogHandlers } from "./dialog";
 import { registerDownloadHandlers } from "./download";
@@ -13,6 +14,7 @@ import { registerWindowHandlers } from "./window";
 
 export function registerIpcHandlers(props: IpcHandlerProps) {
   registerStoreHandlers();
+  registerAudioHandlers(props);
   registerDialogHandlers();
   registerFontHandlers();
   registerDownloadHandlers(props);

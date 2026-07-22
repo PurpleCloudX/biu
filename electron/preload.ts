@@ -22,6 +22,23 @@ const api: ElectronAPI = {
   getNeteaseLyrics: params => ipcRenderer.invoke(channel.lyrics.getNeteaseLyrics, params),
   searchLrclibLyrics: params => ipcRenderer.invoke(channel.lyrics.searchLrclib, params),
   setProxySettings: proxySettings => ipcRenderer.invoke(channel.app.setProxySettings, proxySettings),
+  configureNativeAudio: config => ipcRenderer.invoke(channel.audio.configure, config),
+  probeNativeAudio: config => ipcRenderer.invoke(channel.audio.probe, config),
+  loadNativeAudio: request => ipcRenderer.invoke(channel.audio.load, request),
+  playNativeAudio: () => ipcRenderer.invoke(channel.audio.play),
+  pauseNativeAudio: () => ipcRenderer.invoke(channel.audio.pause),
+  seekNativeAudio: position => ipcRenderer.invoke(channel.audio.seek, position),
+  setNativeAudioVolume: volume => ipcRenderer.invoke(channel.audio.setVolume, volume),
+  setNativeAudioMuted: muted => ipcRenderer.invoke(channel.audio.setMuted, muted),
+  setNativeAudioRate: rate => ipcRenderer.invoke(channel.audio.setRate, rate),
+  setNativeAudioLoop: loop => ipcRenderer.invoke(channel.audio.setLoop, loop),
+  getNativeAudioStatus: () => ipcRenderer.invoke(channel.audio.getStatus),
+  listNativeAudioDevices: () => ipcRenderer.invoke(channel.audio.listDevices),
+  onNativeAudioEvent: cb => {
+    const handler = (_: Electron.IpcRendererEvent, event: NativeAudioEvent) => cb(event);
+    ipcRenderer.on(channel.audio.event, handler);
+    return () => ipcRenderer.removeListener(channel.audio.event, handler);
+  },
   scanLocalMusic: dirs => ipcRenderer.invoke(channel.localMusic.scan, dirs),
   deleteLocalMusicFile: filePath => ipcRenderer.invoke(channel.localMusic.deleteFile, filePath),
   // 监听来自主进程的导航事件，并将路径回调给渲染端

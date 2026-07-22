@@ -5,6 +5,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { applyProxySettings } from "./ipc/app";
+import { shutdownAudioBackend } from "./ipc/audio";
 import { channel } from "./ipc/channel";
 import { quitAndSaveTasks } from "./ipc/download";
 import { registerIpcHandlers } from "./ipc/index";
@@ -41,7 +42,7 @@ function createWindow() {
     width: 1200,
     height: 800,
     minWidth: 1200,
-    minHeight: 800,
+    minHeight: 600,
     resizable: true,
     // 跟随 web 页面大小
     useContentSize: true,
@@ -186,6 +187,8 @@ if (!gotTheLock) {
     } catch (err) {
       log.warn("[main] destroyTray failed:", err);
     }
+
+    void shutdownAudioBackend();
 
     destroyMiniPlayer();
 
