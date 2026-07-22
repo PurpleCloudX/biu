@@ -30,6 +30,7 @@ export const pluginElectron = (): RsbuildPlugin => ({
     });
 
     api.onAfterBuild(async () => {
+      if (process.env.BIU_SKIP_ELECTRON_PACKAGE === "1") return;
       await buildElectron();
     });
   },
