@@ -29,6 +29,7 @@ import {
 import FontSelect from "@/components/font-select";
 import UpdateCheckButton from "@/components/update-check-button";
 
+import AudioSettings from "./audio-settings";
 import ColorSettings from "./color-settings";
 import ImportExport from "./export-import";
 
@@ -266,6 +267,7 @@ export const SystemSettingsTab = ({
           />
         </div>
       </div>
+      <AudioSettings control={control} setValue={setValue} />
       {/* 播放记录上报 */}
       <div className="flex w-full items-center justify-between">
         <div className="mr-6 space-y-1">

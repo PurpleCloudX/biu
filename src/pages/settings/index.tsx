@@ -6,6 +6,7 @@ import { useShallow } from "zustand/react/shallow";
 
 import ScrollContainer from "@/components/scroll-container";
 import { useAppUpdateStore } from "@/store/app-update";
+import { audio } from "@/store/play-list";
 import { useSettings } from "@/store/settings";
 
 import MenuSettings from "./menu-settings";
@@ -24,6 +25,10 @@ const useSystemSettingsForm = () => {
     closeWindowOption,
     autoStart,
     audioQuality,
+    audioEngine,
+    mpvPath,
+    audioOutputMode,
+    audioDevice,
     hiddenMenuKeys,
     displayMode,
     ffmpegPath,
@@ -42,6 +47,10 @@ const useSystemSettingsForm = () => {
       closeWindowOption: s.closeWindowOption,
       autoStart: s.autoStart,
       audioQuality: s.audioQuality,
+      audioEngine: s.audioEngine,
+      mpvPath: s.mpvPath,
+      audioOutputMode: s.audioOutputMode,
+      audioDevice: s.audioDevice,
       hiddenMenuKeys: s.hiddenMenuKeys,
       displayMode: s.displayMode,
       ffmpegPath: s.ffmpegPath,
@@ -70,6 +79,10 @@ const useSystemSettingsForm = () => {
       closeWindowOption,
       autoStart,
       audioQuality,
+      audioEngine,
+      mpvPath,
+      audioOutputMode,
+      audioDevice,
       hiddenMenuKeys,
       displayMode,
       ffmpegPath,
@@ -94,6 +107,9 @@ const useSystemSettingsForm = () => {
       updateSettings(patch);
       if (name === "proxySettings" && values.proxySettings && window.electron?.setProxySettings) {
         window.electron.setProxySettings(values.proxySettings as ProxySettings);
+      }
+      if (["audioEngine", "mpvPath", "audioOutputMode", "audioDevice"].includes(name)) {
+        void audio.reconfigure();
       }
     });
     return () => subscription.unsubscribe();

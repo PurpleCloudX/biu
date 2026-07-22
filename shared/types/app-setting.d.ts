@@ -22,6 +22,10 @@ interface AppSettings {
   closeWindowOption: "hide" | "exit";
   autoStart: boolean;
   audioQuality: AudioQuality;
+  audioEngine: AudioEngine;
+  mpvPath?: string;
+  audioOutputMode: AudioOutputMode;
+  audioDevice?: string;
   hiddenMenuKeys: string[];
   displayMode: "card" | "list" | "compact";
   ffmpegPath?: string;
