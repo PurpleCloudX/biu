@@ -26,13 +26,28 @@ const AudioSettings = ({ control, setValue }: AudioSettingsProps) => {
   });
 
   useEffect(() => {
-    void window.electron.getNativeAudioStatus().then(async currentStatus => {
-      setStatus(currentStatus);
-      if (currentStatus.backend === "mpv") setDevices(await window.electron.listNativeAudioDevices());
+    let receivedStatus = false;
+    const refreshDevices = async (currentStatus: NativeAudioStatus) => {
+      if (currentStatus.backend !== "mpv") {
+        setDevices([]);
+        return;
+      }
+      setDevices(await window.electron.listNativeAudioDevices());
+    };
+    const unsubscribe = window.electron.onNativeAudioEvent(event => {
+      if (event.type !== "status") return;
+      receivedStatus = true;
+      setStatus(event.value);
+      void refreshDevices(event.value);
     });
-    return window.electron.onNativeAudioEvent(event => {
-      if (event.type === "status") setStatus(event.value);
+
+    void window.electron.getNativeAudioStatus().then(currentStatus => {
+      // A status event can arrive before this initial IPC response. Do not let
+      // that stale snapshot erase the formats received from the active track.
+      if (!receivedStatus) setStatus(currentStatus);
+      return refreshDevices(currentStatus);
     });
+    return unsubscribe;
   }, []);
 
   const testBackend = async () => {
@@ -152,8 +167,11 @@ const AudioSettings = ({ control, setValue }: AudioSettingsProps) => {
                 aria-label="输出设备"
                 isDisabled={audioEngine === "chromium" || devices.length === 0}
                 placeholder="系统默认"
-                selectedKeys={field.value ? new Set([field.value]) : new Set()}
-                onSelectionChange={keys => field.onChange((Array.from(keys)[0] as string | undefined) ?? "")}
+                selectedKeys={new Set([devices.some(device => device.name === field.value) ? field.value : "auto"])}
+                onSelectionChange={keys => {
+                  const value = Array.from(keys)[0] as string | undefined;
+                  field.onChange(value === "auto" ? "" : (value ?? ""));
+                }}
               >
                 {devices.map(device => (
                   <SelectItem key={device.name}>{device.description}</SelectItem>

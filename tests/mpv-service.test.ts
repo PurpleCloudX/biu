@@ -19,6 +19,17 @@ const net = require("node:net");
 const args = process.argv.slice(2);
 fs.writeFileSync(${JSON.stringify(argumentsFile)}, JSON.stringify(args));
 const endpoint = args.find(arg => arg.startsWith("--input-ipc-server=")).slice("--input-ipc-server=".length);
+const properties = {
+  "audio-device": "auto",
+  "audio-device-list": [
+    { name: "pipewire/auto", description: "PipeWire" },
+    { name: "pipewire/auto", description: "PipeWire duplicate" },
+    { name: "alsa/hw:0,0", description: "ALSA device" }
+  ],
+  "audio-out-params": { samplerate: 48000, format: "float", "hr-channels": "stereo" },
+  "audio-params": { samplerate: 96000, format: "s32", "hr-channels": "stereo" },
+  "current-ao": "pipewire"
+};
 const server = net.createServer(socket => {
   let buffer = "";
   socket.setEncoding("utf8");
@@ -29,12 +40,11 @@ const server = net.createServer(socket => {
       const line = buffer.slice(0, newline);
       buffer = buffer.slice(newline + 1);
       const request = JSON.parse(line);
-      socket.write(JSON.stringify({ request_id: request.request_id, error: "success", data: null }) + "\\n");
+      const data = request.command[0] === "get_property" ? properties[request.command[1]] ?? null : null;
+      socket.write(JSON.stringify({ request_id: request.request_id, error: "success", data }) + "\\n");
       if (request.command[0] === "loadfile") {
         socket.write(JSON.stringify({ event: "file-loaded" }) + "\\n");
         socket.write(JSON.stringify({ event: "property-change", name: "duration", data: 240 }) + "\\n");
-        socket.write(JSON.stringify({ event: "property-change", name: "audio-params", data: { samplerate: 96000, format: "s32", "hr-channels": "stereo" } }) + "\\n");
-        socket.write(JSON.stringify({ event: "property-change", name: "audio-out-params", data: { samplerate: 48000, format: "float", "hr-channels": "stereo" } }) + "\\n");
       }
       if (request.command[0] === "set_property" && request.command[1] === "pause") {
         socket.write(JSON.stringify({ event: "property-change", name: "pause", data: request.command[2] }) + "\\n");
@@ -79,6 +89,31 @@ describe("MpvService", () => {
 
     const args = JSON.parse(await readFile(argumentsFile, "utf8")) as string[];
     expect(args).toContain("--ao=pipewire,pulse,alsa");
+    expect(args).toContain("--gapless-audio=weak");
     expect(args).toContain("--audio-resample-filter-size=32");
+  });
+
+  test("normalizes output devices and keeps the system default", async () => {
+    const { executable } = await createFakeMpv();
+    const service = new MpvService();
+    services.push(service);
+
+    await service.configure({ engine: "mpv", mpvPath: executable, outputMode: "shared" });
+
+    await expect(service.listDevices()).resolves.toEqual([
+      { name: "auto", description: "系统默认" },
+      { name: "pipewire/auto", description: "PipeWire" },
+      { name: "alsa/hw:0,0", description: "ALSA device" },
+    ]);
+  });
+
+  test("falls back to the system default when the saved output device is gone", async () => {
+    const { executable } = await createFakeMpv();
+    const service = new MpvService();
+    services.push(service);
+
+    await expect(
+      service.configure({ engine: "mpv", mpvPath: executable, outputMode: "shared", audioDevice: "alsa/hw:9,9" }),
+    ).resolves.toMatchObject({ audioDevice: "auto", backend: "mpv" });
   });
 });

@@ -25,6 +25,11 @@ interface FileLoadWaiter {
 
 type NativeAudioEventListener = (event: NativeAudioEvent) => void;
 
+const systemDefaultDevice = {
+  description: "系统默认",
+  name: "auto",
+};
+
 const observedProperties = [
   "pause",
   "time-pos",
@@ -119,6 +124,7 @@ export class MpvService {
       this.cancelFileLoad(error instanceof Error ? error : new Error(String(error)));
       throw error;
     }
+    await this.refreshPlaybackStatus();
     if (request.position > 0) await transport.command(["set_property", "time-pos", request.position]);
     await transport.command(["set_property", "pause", request.paused]);
   }
@@ -154,14 +160,17 @@ export class MpvService {
   async listDevices(): Promise<Array<{ description: string; name: string }>> {
     await this.ensureStarted();
     const devices = await this.requireTransport().command<unknown>(["get_property", "audio-device-list"]);
-    if (!Array.isArray(devices)) return [];
+    if (!Array.isArray(devices)) return [systemDefaultDevice];
 
-    return devices.flatMap(device => {
+    const names = new Set<string>([systemDefaultDevice.name]);
+    const uniqueDevices = devices.flatMap(device => {
       if (!device || typeof device !== "object") return [];
       const item = device as Record<string, unknown>;
-      if (typeof item.name !== "string") return [];
+      if (typeof item.name !== "string" || names.has(item.name)) return [];
+      names.add(item.name);
       return [{ name: item.name, description: typeof item.description === "string" ? item.description : item.name }];
     });
+    return [systemDefaultDevice, ...uniqueDevices];
   }
 
   async stop(): Promise<void> {
@@ -208,11 +217,11 @@ export class MpvService {
       `--input-ipc-server=${endpoint}`,
       `--ao=${driver}`,
       "--audio-client-name=Biu",
-      "--gapless-audio=yes",
+      // Keep gapless playback only when mpv can retain the negotiated format.
+      "--gapless-audio=weak",
       "--audio-resample-filter-size=32",
     ];
 
-    if (config.audioDevice) args.push(`--audio-device=${config.audioDevice}`);
     if (config.outputMode === "direct") args.push("--audio-exclusive=yes");
 
     log.info("[audio] Starting mpv native backend", { executable, driver, mode: config.outputMode });
@@ -233,6 +242,7 @@ export class MpvService {
       this.handleProcessFailure(`mpv exited (${code ?? signal ?? "unknown"})${detail ? `: ${detail}` : ""}`);
     });
 
+    let selectedDevice = "auto";
     let transport: MpvTransport;
     try {
       transport = await this.connect(endpoint, child);
@@ -248,6 +258,18 @@ export class MpvService {
       for (const [id, property] of observedProperties.entries()) {
         await transport.command(["observe_property", id + 1, property]);
       }
+
+      if (config.audioDevice) {
+        const devices = await this.listDevices();
+        if (devices.some(device => device.name === config.audioDevice)) {
+          await transport.command(["set_property", "audio-device", config.audioDevice]);
+          selectedDevice = config.audioDevice;
+        } else {
+          log.warn("[audio] Saved output device is unavailable; using the system default", {
+            audioDevice: config.audioDevice,
+          });
+        }
+      }
     } catch (error) {
       await this.stop();
       const message = error instanceof Error ? error.message : String(error);
@@ -260,7 +282,7 @@ export class MpvService {
       backend: "mpv",
       executable,
       outputDriver: driver,
-      audioDevice: config.audioDevice,
+      audioDevice: selectedDevice,
     });
     return this.getStatus();
   }
@@ -343,6 +365,27 @@ export class MpvService {
         if (typeof message.data === "string") this.updateStatus({ audioDevice: message.data });
         break;
     }
+  }
+
+  private async refreshPlaybackStatus(): Promise<void> {
+    const transport = this.requireTransport();
+    const getProperty = async <T>(property: string): Promise<T | undefined> =>
+      transport.command<T>(["get_property", property]).catch(() => undefined);
+    const [source, output, outputDriver, audioDevice] = await Promise.all([
+      getProperty<unknown>("audio-params"),
+      getProperty<unknown>("audio-out-params"),
+      getProperty<unknown>("current-ao"),
+      getProperty<unknown>("audio-device"),
+    ]);
+    const patch: Partial<NativeAudioStatus> = {};
+    const sourceFormat = toAudioFormat(source);
+    const outputFormat = toAudioFormat(output);
+
+    if (sourceFormat) patch.source = sourceFormat;
+    if (outputFormat) patch.output = outputFormat;
+    if (typeof outputDriver === "string") patch.outputDriver = outputDriver;
+    if (typeof audioDevice === "string") patch.audioDevice = audioDevice;
+    if (Object.keys(patch).length > 0) this.updateStatus(patch);
   }
 
   private handleProcessFailure(message: string): void {
