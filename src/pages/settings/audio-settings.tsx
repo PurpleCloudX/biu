@@ -19,6 +19,7 @@ interface AudioSettingsProps {
 const AudioSettings = ({ control, setValue }: AudioSettingsProps) => {
   const [devices, setDevices] = useState<Array<{ description: string; name: string }>>([]);
   const [isTesting, setIsTesting] = useState(false);
+  const [probeStatus, setProbeStatus] = useState<NativeAudioStatus>();
   const [status, setStatus] = useState<NativeAudioStatus>();
   const [audioEngine, mpvPath, audioOutputMode, audioDevice] = useWatch({
     control,
@@ -59,15 +60,16 @@ const AudioSettings = ({ control, setValue }: AudioSettingsProps) => {
         outputMode: audioOutputMode,
         audioDevice,
       });
-      setStatus(result.status);
+      // The probe uses a separate, idle mpv process. Its status must not
+      // replace the active player's negotiated source/output format.
+      setProbeStatus(result.status);
       setDevices(result.devices);
     } catch (error) {
-      setStatus({
+      setProbeStatus({
         available: false,
         backend: "chromium",
         error: error instanceof Error ? error.message : String(error),
       });
-      setDevices([]);
     } finally {
       setIsTesting(false);
     }
@@ -156,7 +158,7 @@ const AudioSettings = ({ control, setValue }: AudioSettingsProps) => {
       <div className="flex w-full items-center justify-between">
         <div className="mr-6 space-y-1">
           <div className="text-medium font-medium">输出设备</div>
-          <div className="text-sm text-zinc-500">检测后可选择 mpv 识别的设备</div>
+          <div className="text-sm text-zinc-500">名称前缀标明 mpv 后端；共享模式建议保留系统默认</div>
         </div>
         <div className="w-[420px]">
           <Controller
@@ -165,8 +167,8 @@ const AudioSettings = ({ control, setValue }: AudioSettingsProps) => {
             render={({ field }) => (
               <Select
                 aria-label="输出设备"
+                disallowEmptySelection
                 isDisabled={audioEngine === "chromium" || devices.length === 0}
-                placeholder="系统默认"
                 selectedKeys={new Set([devices.some(device => device.name === field.value) ? field.value : "auto"])}
                 onSelectionChange={keys => {
                   const value = Array.from(keys)[0] as string | undefined;
@@ -188,6 +190,9 @@ const AudioSettings = ({ control, setValue }: AudioSettingsProps) => {
           <div>输出：{status?.outputDriver ?? "-"}</div>
           <div>源格式：{formatAudio(status?.source)}</div>
           <div>mpv 输出格式：{formatAudio(status?.output)}</div>
+          {probeStatus && (
+            <div>检测：{probeStatus.backend === "mpv" ? "mpv 可用" : (probeStatus.error ?? "未检测到 mpv")}</div>
+          )}
           {status?.backend === "mpv" && audioOutputMode === "shared" && (
             <div>共享模式下，系统音频服务仍可能进行最终重采样</div>
           )}

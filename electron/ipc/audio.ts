@@ -51,7 +51,7 @@ export const registerAudioHandlers = ({ getMainWindow }: IpcHandlerProps) => {
   ipcMain.handle(channel.audio.setMuted, (_, muted: boolean) => mpvService.setMuted(muted));
   ipcMain.handle(channel.audio.setRate, (_, rate: number) => mpvService.setRate(rate));
   ipcMain.handle(channel.audio.setLoop, (_, loop: boolean) => mpvService.setLoop(loop));
-  ipcMain.handle(channel.audio.getStatus, () => mpvService.getStatus());
+  ipcMain.handle(channel.audio.getStatus, () => mpvService.getPlaybackStatus());
   ipcMain.handle(channel.audio.listDevices, () => mpvService.listDevices());
 };
 

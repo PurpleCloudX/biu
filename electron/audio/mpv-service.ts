@@ -30,6 +30,26 @@ const systemDefaultDevice = {
   name: "auto",
 };
 
+const audioBackendLabels: Record<string, string> = {
+  alsa: "ALSA",
+  coreaudio: "CoreAudio",
+  openal: "OpenAL",
+  pipewire: "PipeWire",
+  pulse: "PulseAudio",
+  wasapi: "WASAPI",
+};
+
+const describeOutputDevice = (name: string, description: string): string => {
+  if (name === systemDefaultDevice.name) return systemDefaultDevice.description;
+
+  const backend = name.split("/", 1)[0];
+  const label = audioBackendLabels[backend];
+  if (!label) return description;
+
+  const isBackendDefault = /^default(?: \([^)]*\))?$/i.test(description) || description === label;
+  return `${label} | ${isBackendDefault ? "系统默认" : description}`;
+};
+
 const observedProperties = [
   "pause",
   "time-pos",
@@ -81,6 +101,13 @@ export class MpvService {
 
   getStatus(): NativeAudioStatus {
     return structuredClone(this.status);
+  }
+
+  async getPlaybackStatus(): Promise<NativeAudioStatus> {
+    if (this.transport && this.process?.exitCode === null) {
+      await this.refreshPlaybackStatus();
+    }
+    return this.getStatus();
   }
 
   async configure(config: NativeAudioConfig): Promise<NativeAudioStatus> {
@@ -168,7 +195,8 @@ export class MpvService {
       const item = device as Record<string, unknown>;
       if (typeof item.name !== "string" || names.has(item.name)) return [];
       names.add(item.name);
-      return [{ name: item.name, description: typeof item.description === "string" ? item.description : item.name }];
+      const description = typeof item.description === "string" ? item.description : item.name;
+      return [{ name: item.name, description: describeOutputDevice(item.name, description) }];
     });
     return [systemDefaultDevice, ...uniqueDevices];
   }

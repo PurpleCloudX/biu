@@ -22,8 +22,11 @@ const endpoint = args.find(arg => arg.startsWith("--input-ipc-server=")).slice("
 const properties = {
   "audio-device": "auto",
   "audio-device-list": [
-    { name: "pipewire/auto", description: "PipeWire" },
-    { name: "pipewire/auto", description: "PipeWire duplicate" },
+    { name: "pipewire", description: "Default (pipewire)" },
+    { name: "pipewire/alsa_output.pci-0000_34_00.1.hdmi-stereo", description: "Radeon HDMI" },
+    { name: "pulse/alsa_output.pci-0000_34_00.1.hdmi-stereo", description: "Radeon HDMI" },
+    { name: "alsa", description: "Default (alsa)" },
+    { name: "pipewire", description: "PipeWire duplicate" },
     { name: "alsa/hw:0,0", description: "ALSA device" }
   ],
   "audio-out-params": { samplerate: 48000, format: "float", "hr-channels": "stereo" },
@@ -81,7 +84,7 @@ describe("MpvService", () => {
     await service.play();
 
     await vi.waitFor(() => expect(service.getStatus().output?.sampleRate).toBe(48000));
-    expect(service.getStatus()).toMatchObject({
+    await expect(service.getPlaybackStatus()).resolves.toMatchObject({
       source: { sampleRate: 96000, format: "s32", channels: "stereo" },
       output: { sampleRate: 48000, format: "float", channels: "stereo" },
     });
@@ -102,8 +105,11 @@ describe("MpvService", () => {
 
     await expect(service.listDevices()).resolves.toEqual([
       { name: "auto", description: "系统默认" },
-      { name: "pipewire/auto", description: "PipeWire" },
-      { name: "alsa/hw:0,0", description: "ALSA device" },
+      { name: "pipewire", description: "PipeWire | 系统默认" },
+      { name: "pipewire/alsa_output.pci-0000_34_00.1.hdmi-stereo", description: "PipeWire | Radeon HDMI" },
+      { name: "pulse/alsa_output.pci-0000_34_00.1.hdmi-stereo", description: "PulseAudio | Radeon HDMI" },
+      { name: "alsa", description: "ALSA | 系统默认" },
+      { name: "alsa/hw:0,0", description: "ALSA | ALSA device" },
     ]);
   });
 
