@@ -4,6 +4,8 @@ import type { Control, UseFormSetValue } from "react-hook-form";
 
 import { Button, Input, Select, SelectItem } from "@heroui/react";
 
+import { selectLatestNativeAudioStatus } from "@/audio/native-audio-status";
+
 const formatAudio = (format?: NativeAudioFormat) => {
   if (!format) return "等待播放";
   return [format.sampleRate ? `${format.sampleRate / 1000} kHz` : undefined, format.format, format.channels]
@@ -27,28 +29,38 @@ const AudioSettings = ({ control, setValue }: AudioSettingsProps) => {
   });
 
   useEffect(() => {
-    let receivedStatus = false;
+    let active = true;
+    let deviceRequest = 0;
+    let latestStatus: NativeAudioStatus | undefined;
     const refreshDevices = async (currentStatus: NativeAudioStatus) => {
+      const request = ++deviceRequest;
       if (currentStatus.backend !== "mpv") {
         setDevices([]);
         return;
       }
-      setDevices(await window.electron.listNativeAudioDevices());
+      const nextDevices = await window.electron.listNativeAudioDevices();
+      if (active && request === deviceRequest) setDevices(nextDevices);
+    };
+    const refreshStatus = (nextStatus: NativeAudioStatus) => {
+      const acceptedStatus = selectLatestNativeAudioStatus(latestStatus, nextStatus);
+      if (acceptedStatus !== nextStatus) return;
+
+      latestStatus = nextStatus;
+      setStatus(nextStatus);
+      void refreshDevices(nextStatus);
     };
     const unsubscribe = window.electron.onNativeAudioEvent(event => {
       if (event.type !== "status") return;
-      receivedStatus = true;
-      setStatus(event.value);
-      void refreshDevices(event.value);
+      refreshStatus(event.value);
     });
 
     void window.electron.getNativeAudioStatus().then(currentStatus => {
-      // A status event can arrive before this initial IPC response. Do not let
-      // that stale snapshot erase the formats received from the active track.
-      if (!receivedStatus) setStatus(currentStatus);
-      return refreshDevices(currentStatus);
+      refreshStatus(currentStatus);
     });
-    return unsubscribe;
+    return () => {
+      active = false;
+      unsubscribe();
+    };
   }, []);
 
   const testBackend = async () => {

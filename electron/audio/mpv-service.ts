@@ -92,7 +92,7 @@ export class MpvService {
   private listener?: NativeAudioEventListener;
   private process?: ChildProcess;
   private runtimeDirectory?: string;
-  private status: NativeAudioStatus = { available: false, backend: "chromium" };
+  private status: NativeAudioStatus = { available: false, backend: "chromium", revision: 0 };
   private transport?: MpvTransport;
 
   setEventListener(listener?: NativeAudioEventListener): void {
@@ -440,12 +440,12 @@ export class MpvService {
   }
 
   private updateStatus(patch: Partial<NativeAudioStatus>): void {
-    this.status = { ...this.status, ...patch };
+    this.status = { ...this.status, ...patch, revision: (this.status.revision ?? 0) + 1 };
     this.listener?.({ type: "status", value: this.getStatus() });
   }
 
   private replaceStatus(status: NativeAudioStatus): void {
-    this.status = status;
+    this.status = { ...status, revision: (this.status.revision ?? 0) + 1 };
     this.listener?.({ type: "status", value: this.getStatus() });
   }
 

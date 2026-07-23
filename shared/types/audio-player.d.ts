@@ -19,6 +19,8 @@ declare global {
   interface NativeAudioStatus {
     available: boolean;
     backend: NativeAudioBackend;
+    /** Monotonic main-process revision used to discard delayed IPC events. */
+    revision?: number;
     executable?: string;
     outputDriver?: string;
     audioDevice?: string;
